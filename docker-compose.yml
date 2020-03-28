@@ -1,40 +1,61 @@
----
-version: "2.1"
+version: '2.2'
 services:
-
-  # Elasticsearch cluster. localhost 9200 (ensure this is open on host) --> container 9200
-  # For simplicity, running only a single node here
-  # To run multiple nodes on single machines: https://discuss.elastic.co/t/can-i-run-multiple-elasticsearch-nodes-on-the-same-machine/67
-  elasticsearch:
-    container_name: elasticsearch
-    hostname: elasticsearch
-    image: "docker.elastic.co/elasticsearch/elasticsearch:${ELASTIC_VERSION}"
+  es01:
+    image: docker.elastic.co/elasticsearch/elasticsearch:7.6.0
+    container_name: es01
     environment:
-      - cluster.name=es-cluster
-      - node.name=es-node-1
-      - path.data=/usr/share/elasticsearch/data
-      - http.port=9200
-      - http.host=0.0.0.0
-      - transport.host=127.0.0.1
+      - node.name=es01
+      - cluster.name=es-docker-cluster
+      - discovery.seed_hosts=es02,es03
+      - cluster.initial_master_nodes=es01,es02,es03
       - bootstrap.memory_lock=true
-      - "ES_JAVA_OPTS=-Xms${ES_JVM_HEAP} -Xmx${ES_JVM_HEAP}"
-    mem_limit: ${ES_MEM_LIMIT}
+      - "ES_JAVA_OPTS=-Xms2048m -Xmx2048m"
     ulimits:
       memlock:
         soft: -1
         hard: -1
     volumes:
-      # ES data dir mount to local drive
-      - ${ES_MOUNT_DRIVE}:/usr/share/elasticsearch/data
+      - data01:/usr/share/elasticsearch/data
     ports:
-      - '9200:9200'
-    # Internal network for the containers
+      - 9200:9200
     networks:
-      - 'elk_stack'
-    # Health check to confirm availability of ES. Other containers wait on this.
-    healthcheck:
-      test: ["CMD", "curl","-s" ,"-f", "-u", "elastic:${ES_PASSWORD}", "http://localhost:9200/_cat/health"]
-
+      - elastic
+  es02:
+    image: docker.elastic.co/elasticsearch/elasticsearch:7.6.0
+    container_name: es02
+    environment:
+      - node.name=es02
+      - cluster.name=es-docker-cluster
+      - discovery.seed_hosts=es01,es03
+      - cluster.initial_master_nodes=es01,es02,es03
+      - bootstrap.memory_lock=true
+      - "ES_JAVA_OPTS=-Xms2048m -Xmx2048m"
+    ulimits:
+      memlock:
+        soft: -1
+        hard: -1
+    volumes:
+      - data02:/usr/share/elasticsearch/data
+    networks:
+      - elastic
+  es03:
+    image: docker.elastic.co/elasticsearch/elasticsearch:7.6.0
+    container_name: es03
+    environment:
+      - node.name=es03
+      - cluster.name=es-docker-cluster
+      - discovery.seed_hosts=es01,es02
+      - cluster.initial_master_nodes=es01,es02,es03
+      - bootstrap.memory_lock=true
+      - "ES_JAVA_OPTS=-Xms2048m -Xmx2048m"
+    ulimits:
+      memlock:
+        soft: -1
+        hard: -1
+    volumes:
+      - data03:/usr/share/elasticsearch/data
+    networks:
+      - elastic
 
   # Kibana container. localhost 5601 (ensure this is open on host) --> container 5601
   kibana:
@@ -44,52 +65,40 @@ services:
     environment:
       - "ELASTICSEARCH_PASSWORD=${ES_PASSWORD}"
       - server.port=127.0.0.1:5601
-      - elasticsearch.url="http://elasticsearch:9200"
-      - server.name="kibana"
+      - "SERVER_NAME=kibana"
+      - "ELASTICSEARCH_HOSTS=http://es01:9200"
     ports:
       - '5601:5601'
+    links:
+      - 'es01'
     # Health check to confirm availability of Kibana
     healthcheck:
           test: ["CMD", "curl", "-s", "-f", "http://localhost:5601/login"]
           retries: 6
     # Internal network for the containers
     networks:
-      - 'elk_stack'
+      - 'elastic'
     # We don't start Kibana until the ES instance is ready
     depends_on:
-      - 'elasticsearch'
+      - 'es01'
+      - 'es02'
+      - 'es03'
 
 
-  # Configure Stack container. This short lived container configures the stack once Kibana and Elasticsearch
-  # are available. More specifically, using a script it sets passwords, import dashboards,
-  # sets a default index pattern, loads templates and pipelines
-  configure_stack:
-    container_name: configure_stack
-    image: docker.elastic.co/beats/metricbeat:${ELASTIC_VERSION}
-    # Configure the container env so that the script can use the config settings
-    environment:
-      - 'ELASTIC_VERSION=${ELASTIC_VERSION}'
-      - 'ES_PASSWORD=${ES_PASSWORD}'
-      - 'ES_DEFAULT_INDEX_PATTERN=${ES_DEFAULT_INDEX_PATTERN}'
-    volumes:
-      - './init/configure-stack.sh:/usr/local/bin/configure-stack.sh:ro'
-    command: ['/bin/bash', '-c', 'cat /usr/local/bin/configure-stack.sh | tr -d "\r" | bash']
-    # Internal network for the containers
-    networks:
-      - 'elk_stack'
-    # Wait for ES, Kibana to come up before stack config
-    depends_on:
-      - 'elasticsearch'
-      - 'kibana'
+volumes:
+  data01:
+    driver: local
+  data02:
+    driver: local
+  data03:
+    driver: local
 
-
-# network connectors used in the docker env
 networks:
-  elk_stack:
-      driver: bridge
-      ipam:
+  elastic:
+    driver: bridge
+    ipam:
         driver: default
         config:
         # default docker compose subnet(172.177.0.0/16), which may overlap with existing services on home network.
         # use this configuration to update to a different subnet
-        - subnet: 192.168.1.0/24
+        - subnet: 192.168.3.0/24
