@@ -1,4 +1,4 @@
-version: '2.2'
+version: '3.7'
 services:
   es01:
     image: "docker.elastic.co/elasticsearch/elasticsearch:${ELASTIC_VERSION}"
@@ -9,11 +9,11 @@ services:
       - discovery.seed_hosts=es02,es03
       - cluster.initial_master_nodes=es01,es02,es03
       - bootstrap.memory_lock=true
-      - "ES_JAVA_OPTS=-Xms512m -Xmx512m"
+      - "ES_JAVA_OPTS=-Xms512m -Xmx1512m"
     ulimits:
       memlock:
-        soft: -1
-        hard: -1
+        soft: 4096
+        hard: 4096
     volumes:
       - data01:/usr/share/elasticsearch/data
     ports:
@@ -29,11 +29,11 @@ services:
       - discovery.seed_hosts=es01,es03
       - cluster.initial_master_nodes=es01,es02,es03
       - bootstrap.memory_lock=true
-      - "ES_JAVA_OPTS=-Xms512m -Xmx512m"
+      - "ES_JAVA_OPTS=-Xms512m -Xmx1512m"
     ulimits:
       memlock:
-        soft: -1
-        hard: -1
+        soft: 4096
+        hard: 4096
     volumes:
       - data02:/usr/share/elasticsearch/data
     networks:
@@ -47,11 +47,11 @@ services:
       - discovery.seed_hosts=es01,es02
       - cluster.initial_master_nodes=es01,es02,es03
       - bootstrap.memory_lock=true
-      - "ES_JAVA_OPTS=-Xms512m -Xmx512m"
+      - "ES_JAVA_OPTS=-Xms512m -Xmx1512m"
     ulimits:
       memlock:
-        soft: -1
-        hard: -1
+        soft: 4096
+        hard: 4096
     volumes:
       - data03:/usr/share/elasticsearch/data
     networks:

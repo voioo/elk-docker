@@ -1,6 +1,4 @@
 #!/bin/bash
-
-
 # Wait for Elasticsearch to start up before doing anything.
 until curl -u elastic:changeme -s http://es01:9200/_cat/health -o /dev/null; do
     echo Waiting for Elasticsearch...
@@ -19,7 +17,6 @@ curl -s -XPUT -u elastic:${ES_PASSWORD} 'es01:9200/_xpack/security/user/kibana/_
 curl -s -XPUT -u elastic:${ES_PASSWORD} 'es01:9200/_xpack/security/user/logstash_system/_password' -H "Content-Type: application/json" -d "{
   \"password\" : \"${ES_PASSWORD}\"
 }"
-
 
 # Wait for Kibana to start up before doing anything.
 until curl -s http://kibana:5601/login -o /dev/null; do
